@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>진주시 시내버스 탑승 및 운수사 평가 기록</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f8fafc;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        /* 글자 잘림 방지 및 자연스러운 단어 단위 줄바꿈 */
+        .no-clip-text {
+            white-space: normal;
+            word-break: keep-all;
+            overflow-wrap: break-word;
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- 상단 내비게이션 헤더 -->
+    <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2.5 min-w-0">
+                <div class="bg-indigo-600 text-white p-2 rounded-xl shadow-sm shrink-0">
+                    <i data-lucide="bus" class="w-5 h-5"></i>
+                </div>
+                <div class="no-clip-text">
+                    <h1 class="text-base sm:text-xl font-bold text-slate-900 tracking-tight leading-snug">진주시 버스 탑승 및 운수사 평가</h1>
+                    <p class="text-xs text-slate-500">진주시민버스 · 삼성교통 · 부일교통 · 부산교통</p>
+                </div>
+            </div>
+
+            <!-- 우측 유틸리티 버튼 그룹 -->
+            <div class="flex flex-wrap items-center gap-2">
+                <!-- 대상 구글 스프레드시트 바로가기 -->
+                <a href="https://docs.google.com/spreadsheets/d/1d6E2c-KOIHBzUpLjvUxmSaafp11LfB2kK797lyHUwas/edit?usp=drivesdk" target="_blank" rel="noopener noreferrer"
+                   class="flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium rounded-xl border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-800 transition no-clip-text">
+                    <i data-lucide="external-link" class="w-4 h-4 text-emerald-600 shrink-0"></i>
+                    <span>스프레드시트 열기</span>
+                </a>
+
+                <!-- 스프레드시트 연동 설정 -->
+                <button type="button" onclick="openSheetModal()" id="sheetStatusBtn" class="flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition no-clip-text">
+                    <span id="sheetStatusDot" class="w-2 h-2 rounded-full bg-amber-400 shrink-0"></span>
+                    <span id="sheetStatusText">시트 연동 설정</span>
+                </button>
+
+                <!-- CSV 내보내기 -->
+                <button type="button" onclick="exportToCSV()" class="flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 transition no-clip-text" title="엑셀(CSV) 파일로 다운로드">
+                    <i data-lucide="download" class="w-4 h-4 text-slate-500 shrink-0"></i>
+                    <span>CSV 저장</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- 알림 토스트 영역 -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- 메인 컨텐츠 영역 -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
+
+        <!-- 섹션 1: 탑승 및 평가 기록 테이블 (추가하기 버튼 배치 + 접기/펼치기 지원) -->
+        <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div class="px-4 sm:px-5 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/50">
+                <div class="flex flex-wrap items-center gap-2">
+                    <i data-lucide="clipboard-list" class="w-5 h-5 text-indigo-600 shrink-0"></i>
+                    <h2 class="font-bold text-slate-800 text-base sm:text-lg">탑승 기록 및 평가란</h2>
+                    <span id="totalCountBadge" class="px-2.5 py-0.5 text-xs font-semibold bg-indigo-50 text-indigo-700 rounded-full">총 0건</span>
+                    
+                    <!-- 평가란 접기/펼치기 토글 버튼 -->
+                    <button type="button" onclick="toggleEvaluationSection()" id="toggleEvalBtn" aria-expanded="true"
+                        class="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 shadow-2xs transition">
+                        <span id="toggleEvalText">접기</span>
+                        <i id="toggleEvalIcon" data-lucide="chevron-up" class="w-3.5 h-3.5 text-slate-500 transition-transform duration-200"></i>
+                    </button>
+                </div>
+
+                <!-- 평가란 우측 컨트롤 영역: 안내 문구 + 시트 동기화 + 추가하기 버튼 -->
+                <div class="flex flex-wrap items-center gap-2 sm:gap-3">
+                    <span class="hidden md:inline text-xs text-slate-500 no-clip-text">* 평점은 낮을수록 고순위로 집계됩니다.</span>
+                    
+                    <button type="button" onclick="syncAllToSheet(true)" id="manualSyncBtn" class="hidden items-center gap-1.5 px-3 py-2 text-xs sm:text-sm rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 font-semibold border border-emerald-200 transition">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5 shrink-0"></i>
+                        <span>시트 즉시 전송</span>
+                    </button>
+
+                    <!-- 평가란 내 '추가하기' 버튼 -->
+                    <button type="button" onclick="addRow()" class="flex items-center gap-1.5 px-4 py-2 text-xs sm:text-sm font-semibold rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white shadow-sm transition no-clip-text">
+                        <i data-lucide="plus" class="w-4 h-4 shrink-0"></i>
+                        <span>추가하기</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- 접기/펼치기 대상 본문 영역 -->
+            <div id="evaluationSectionBody" class="transition-all duration-200">
+                <div class="w-full">
+                    <table class="w-full text-left border-collapse block lg:table">
+                        <thead class="hidden lg:table-header-group">
+                            <tr class="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-600 uppercase tracking-wider">
+                                <th class="py-3.5 px-3 w-[15%]">날짜</th>
+                                <th class="py-3.5 px-3 w-[18%]">운수사명</th>
+                                <th class="py-3.5 px-3 w-[12%]">차번</th>
+                                <th class="py-3.5 px-3 w-[13%]">기사명</th>
+                                <th class="py-3.5 px-3 w-[13%]">평점 <span class="block text-[10px] font-normal text-indigo-600">(낮을수록 우수)</span></th>
+                                <th class="py-3.5 px-3 w-[23%]">비고</th>
+                                <th class="py-3.5 px-3 w-[6%] text-center">삭제</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recordTableBody" class="block lg:table-row-group divide-y divide-slate-200 lg:divide-slate-100 text-sm">
+                            <!-- 자바스크립트로 행 동적 생성 -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- 데이터 없을 때 안내 화면 -->
+                <div id="emptyState" class="hidden py-12 text-center px-4">
+                    <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-slate-100 text-slate-400 mb-3">
+                        <i data-lucide="file-plus-2" class="w-6 h-6"></i>
+                    </div>
+                    <p class="text-slate-600 font-medium">아직 등록된 탑승 기록이 없습니다.</p>
+                    <p class="text-slate-400 text-xs mt-1">평가란 우측 상단의 '추가하기' 버튼을 눌러 첫 기록을 작성해보세요.</p>
+                    <button type="button" onclick="addRow()" class="mt-4 inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition">
+                        <i data-lucide="plus" class="w-4 h-4"></i> 새 기록 추가하기
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- 섹션 2: 평가란 하단 통계 대시보드 (3단 그리드) -->
+        <section class="space-y-4">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="bar-chart-3" class="w-5 h-5 text-indigo-600 shrink-0"></i>
+                    <h2 class="font-bold text-slate-800 text-lg">실시간 평가 및 탑승 통계</h2>
+                </div>
+                <span class="text-xs text-slate-500">데이터 변경 시 실시간 반영</span>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <!-- 카드 1: 순위별 운수사 평균 평점 (낮을수록 고순위) -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col">
+                    <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                        <div>
+                            <h3 class="font-bold text-slate-800 flex items-center gap-1.5">
+                                <i data-lucide="trophy" class="w-4 h-4 text-amber-500 shrink-0"></i>
+                                <span>운수사별 평균 평점 순위</span>
+                            </h3>
+                            <p class="text-xs text-slate-500 mt-0.5">평균 평점이 낮을수록 1위(고순위)</p>
+                        </div>
+                    </div>
+                    <div id="companyRatingRankList" class="space-y-3 flex-1">
+                        <!-- 동적 생성 -->
+                    </div>
+                </div>
+
+                <!-- 카드 2: 운수사별 탑승횟수 -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col">
+                    <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                        <div>
+                            <h3 class="font-bold text-slate-800 flex items-center gap-1.5">
+                                <i data-lucide="building-2" class="w-4 h-4 text-indigo-500 shrink-0"></i>
+                                <span>운수사별 탑승 횟수</span>
+                            </h3>
+                            <p class="text-xs text-slate-500 mt-0.5">운수사별 누적 탑승 건수 및 비중</p>
+                        </div>
+                    </div>
+                    <div id="companyRideCountList" class="space-y-3 flex-1">
+                        <!-- 동적 생성 -->
+                    </div>
+                </div>
+
+                <!-- 카드 3: 기사별 탑승 횟수 -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex flex-col">
+                    <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+                        <div>
+                            <h3 class="font-bold text-slate-800 flex items-center gap-1.5">
+                                <i data-lucide="user-check" class="w-4 h-4 text-emerald-500 shrink-0"></i>
+                                <span>기사별 탑승 횟수</span>
+                            </h3>
+                            <p class="text-xs text-slate-500 mt-0.5">기사명 기준 누적 탑승 순위</p>
+                        </div>
+                    </div>
+                    <div id="driverRideCountList" class="space-y-2.5 flex-1">
+                        <!-- 동적 생성 -->
+                    </div>
+                </div>
+
+            </div>
+        </section>
+    </main>
+
+    <!-- 팝업 모달 1: 비고 작성 및 수정 모달 -->
+    <div id="noteModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 transition-opacity">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden transform transition-all">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="file-edit" class="w-5 h-5 text-indigo-600"></i>
+                    <h3 class="font-bold text-slate-800">비고사항 작성</h3>
+                </div>
+                <button type="button" onclick="closeNoteModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div id="noteModalInfo" class="text-xs bg-indigo-50/70 text-indigo-800 px-3.5 py-2.5 rounded-xl border border-indigo-100 font-medium no-clip-text">
+                    <!-- 선택된 행 요약 정보 표시 -->
+                </div>
+                <div>
+                    <label for="noteTextarea" class="block text-sm font-semibold text-slate-700 mb-1.5">상세 메모 / 특이사항</label>
+                    <textarea id="noteTextarea" rows="5" placeholder="운행 태도, 급출발/급정거 여부, 친절도, 차량 청결 상태 등 비고사항을 자유롭게 입력하세요." class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition resize-none"></textarea>
+                </div>
+            </div>
+            <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+                <button type="button" onclick="closeNoteModal()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/70 rounded-xl transition">취소</button>
+                <button type="button" onclick="saveNoteModal()" class="px-5 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm transition">저장하기</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 팝업 모달 2: Google 스프레드시트 연동 설정 모달 -->
+    <div id="sheetModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-2xl overflow-hidden max-h-[90vh] flex flex-col">
+            <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="sheet" class="w-5 h-5 text-emerald-600"></i>
+                    <h3 class="font-bold text-slate-800">지정 Google 스프레드시트 자동 저장 설정</h3>
+                </div>
+                <button type="button" onclick="closeSheetModal()" class="text-slate-400 hover:text-slate-600 p-1 rounded-lg transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            
+            <div class="p-6 space-y-5 overflow-y-auto text-sm">
+                <div class="bg-emerald-50/80 border border-emerald-200 rounded-xl p-4 text-emerald-900 space-y-1.5">
+                    <p class="font-semibold flex items-center gap-1.5">
+                        <i data-lucide="link" class="w-4 h-4 text-emerald-600 shrink-0"></i>
+                        <span>연결 대상 시트 ID가 코드에 기본 반영되었습니다</span>
+                    </p>
+                    <p class="text-xs leading-relaxed text-emerald-800 no-clip-text">
+                        요청하신 스프레드시트(<code class="bg-white/80 px-1.5 py-0.5 rounded font-mono text-[11px]">1d6E2c-KOIHBzUpLjvUxmSaafp11LfB2kK797lyHUwas</code>)에 자동 저장되도록 아래 스크립트에 시트 ID가 미리 입력되어 있습니다. 웹 앱 URL만 1회 등록하면 이후 입력 시 자동 저장됩니다.
+                    </p>
+                </div>
+
+                <div>
+                    <label for="appsScriptUrlInput" class="block font-semibold text-slate-700 mb-1.5">Apps Script 웹 앱 URL</label>
+                    <input type="url" id="appsScriptUrlInput" placeholder="https://script.google.com/macros/s/..." class="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500">
+                    <p class="text-xs text-slate-400 mt-1">URL을 등록하면 데이터가 추가·수정·삭제될 때마다 시트로 자동 전송됩니다.</p>
+                </div>
+
+                <div class="border border-slate-200 rounded-xl overflow-hidden">
+                    <div class="bg-slate-100 px-4 py-2.5 flex items-center justify-between border-b border-slate-200">
+                        <span class="text-xs font-bold text-slate-700">전용 Apps Script 코드 (복사해서 붙여넣기)</span>
+                        <button type="button" onclick="copyAppsScriptCode()" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+                            <i data-lucide="copy" class="w-3.5 h-3.5"></i> 코드 복사
+                        </button>
+                    </div>
+                    <div class="p-3 bg-slate-900 text-slate-100 text-xs font-mono overflow-x-auto leading-relaxed">
+<pre id="appsScriptSnippet">function doPost(e) {
+  var ss = SpreadsheetApp.openById("1d6E2c-KOIHBzUpLjvUxmSaafp11LfB2kK797lyHUwas");
+  var sheet = ss.getSheets()[0];
+  var data = JSON.parse(e.postData.contents);
+  
+  sheet.clear();
+  sheet.appendRow(["날짜", "운수사명", "차번", "기사명", "평점", "비고"]);
+  
+  if (data.records && data.records.length > 0) {
+    data.records.forEach(function(r) {
+      sheet.appendRow([r.date, r.company, r.busNumber, r.driver, r.rating, r.note]);
+    });
+  }
+  
+  return ContentService.createTextOutput(JSON.stringify({status: "success"}))
+    .setMimeType(ContentService.MimeType.JSON);
+}</pre>
+                    </div>
+                    <div class="p-3 bg-slate-50 text-xs text-slate-600 space-y-1 border-t border-slate-200 no-clip-text">
+                        <p><strong>1.</strong> 연결된 Google 스프레드시트 상단 메뉴 <strong>[확장 프로그램] &gt; [Apps Script]</strong> 클릭</p>
+                        <p><strong>2.</strong> 기존 내용을 지우고 위 코드를 붙여넣은 뒤 저장 아이콘 클릭</p>
+                        <p><strong>3.</strong> 우측 상단 <strong>[배포] &gt; [새 배포]</strong> &gt; 유형: <strong>웹 앱</strong> / 액세스 권한: <strong>모든 사용자(Anyone)</strong> 설정 후 발급된 웹 앱 URL을 위 칸에 붙여넣기</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+                <button type="button" onclick="closeSheetModal()" class="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200/70 rounded-xl transition">닫기</button>
+                <button type="button" onclick="saveSheetUrl()" class="px-5 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm transition">설정 저장 및 동기화</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 커스텀 삭제 확인 모달 -->
+    <div id="deleteConfirmModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-sm p-6 text-center space-y-4">
+            <div class="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+                <i data-lucide="trash-2" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h3 class="font-bold text-slate-800 text-base">기록을 삭제하시겠습니까?</h3>
+                <p class="text-xs text-slate-500 mt-1">삭제된 데이터는 복구할 수 없으며 통계에 즉시 반영됩니다.</p>
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button type="button" onclick="closeDeleteModal()" class="flex-1 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition">취소</button>
+                <button type="button" onclick="confirmDeleteRow()" class="flex-1 py-2 text-sm font-semibold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition">삭제하기</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. 상태 관리 및 초기 설정
+        // ==========================================
+        const COMPANIES = ["진주시민버스", "삼성교통", "부일교통", "부산교통"];
+        const STORAGE_KEY = "jinju_bus_records_v1";
+        const SHEET_URL_KEY = "jinju_bus_sheet_url_v1";
+        const EVAL_COLLAPSED_KEY = "jinju_bus_eval_collapsed_v1";
+
+        let records = [];
+        let sheetWebAppUrl = "";
+        let isEvalCollapsed = false;
+        let activeNoteRecordId = null;
+        let pendingDeleteId = null;
+        let syncTimeout = null;
+
+        // 초기화 실행
+        window.addEventListener('DOMContentLoaded', () => {
+            loadData();
+            applyEvaluationCollapseState();
+            renderTable();
+            updateAnalytics();
+            updateSheetStatusUI();
+            if (window.lucide) {
+                lucide.createIcons();
+            }
+        });
+
+        // 오늘 날짜 YYYY-MM-DD 반환
+        function getTodayString() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        // 고유 ID 생성
+        function generateId() {
+            return 'rec_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+        }
+
+        // HTML 특수문자 이스케이프
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        // 로컬 스토리지에서 데이터 불러오기
+        function loadData() {
+            try {
+                const savedRecords = localStorage.getItem(STORAGE_KEY);
+                if (savedRecords) {
+                    records = JSON.parse(savedRecords);
+                } else {
+                    records = [{
+                        id: generateId(),
+                        date: getTodayString(),
+                        company: "진주시민버스",
+                        busNumber: "",
+                        driver: "",
+                        rating: "1.0",
+                        note: ""
+                    }];
+                    saveToLocal();
+                }
+
+                const savedUrl = localStorage.getItem(SHEET_URL_KEY);
+                if (savedUrl) {
+                    sheetWebAppUrl = savedUrl;
+                }
+
+                const savedCollapsed = localStorage.getItem(EVAL_COLLAPSED_KEY);
+                isEvalCollapsed = savedCollapsed === "true";
+            } catch (error) {
+                console.error("데이터 로드 오류:", error);
+                records = [];
+            }
+        }
+
+        function saveToLocal() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+            } catch (e) {
+                console.error("로컬 저장 실패:", e);
+            }
+        }
+
+        // 데이터 저장 및 시트 동기화 트리거
+        function persistData(immediateSync = false) {
+            saveToLocal();
+            updateAnalytics();
+
+            if (!sheetWebAppUrl) return;
+
+            if (immediateSync) {
+                syncAllToSheet(false);
+            } else {
+                clearTimeout(syncTimeout);
+                syncTimeout = setTimeout(() => {
+                    syncAllToSheet(false);
+                }, 1200);
+            }
+        }
+
+        // ==========================================
+        // 2. 평가란 접기/펼치기 & 행 추가/수정/삭제
+        // ==========================================
+        function toggleEvaluationSection(forceState = null) {
+            isEvalCollapsed = forceState !== null ? forceState : !isEvalCollapsed;
+            localStorage.setItem(EVAL_COLLAPSED_KEY, String(isEvalCollapsed));
+            applyEvaluationCollapseState();
+        }
+
+        function applyEvaluationCollapseState() {
+            const bodyEl = document.getElementById('evaluationSectionBody');
+            const btnEl = document.getElementById('toggleEvalBtn');
+            const textEl = document.getElementById('toggleEvalText');
+            const iconEl = document.getElementById('toggleEvalIcon');
+
+            if (!bodyEl || !btnEl) return;
+
+            if (isEvalCollapsed) {
+                bodyEl.classList.add('hidden');
+                btnEl.setAttribute('aria-expanded', 'false');
+                textEl.textContent = '펼치기';
+                if (iconEl) iconEl.style.transform = 'rotate(180deg)';
+            } else {
+                bodyEl.classList.remove('hidden');
+                btnEl.setAttribute('aria-expanded', 'true');
+                textEl.textContent = '접기';
+                if (iconEl) iconEl.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        // 새로운 행 추가 (평가란 내 추가하기 버튼)
+        function addRow() {
+            if (isEvalCollapsed) {
+                toggleEvaluationSection(false);
+            }
+
+            const newRecord = {
+                id: generateId(),
+                date: getTodayString(),
+                company: COMPANIES[0],
+                busNumber: "",
+                driver: "",
+                rating: "1.0",
+                note: ""
+            };
+            records.unshift(newRecord);
+            renderTable();
+            persistData(true);
+            showToast("새로운 탑승 기록 행이 추가되었습니다.", "success");
+        }
+
+        // 필드 값 실시간 업데이트
+        function updateRecordField(id, field, value) {
+            const idx = records.findIndex(r => r.id === id);
+            if (idx === -1) return;
+            records[idx][field] = value;
+            persistData(false);
+        }
+
+        // 삭제 모달 열기
+        function requestDeleteRow(id) {
+            pendingDeleteId = id;
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeDeleteModal() {
+            pendingDeleteId = null;
+            const modal = document.getElementById('deleteConfirmModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function confirmDeleteRow() {
+            if (!pendingDeleteId) return;
+            records = records.filter(r => r.id !== pendingDeleteId);
+            closeDeleteModal();
+            renderTable();
+            persistData(true);
+            showToast("기록이 삭제되었습니다.", "info");
+        }
+
+        // 테이블 렌더링 (가로 스크롤 없이 데스크톱 테이블 & 모바일 카드 자동 전환)
+        function renderTable() {
+            const tbody = document.getElementById('recordTableBody');
+            const emptyState = document.getElementById('emptyState');
+            const badge = document.getElementById('totalCountBadge');
+
+            badge.textContent = `총 ${records.length}건`;
+
+            if (records.length === 0) {
+                tbody.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                if (window.lucide) lucide.createIcons();
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+
+            tbody.innerHTML = records.map(rec => {
+                const companyOptions = COMPANIES.map(comp =>
+                    `<option value="${escapeHtml(comp)}" ${rec.company === comp ? 'selected' : ''}>${escapeHtml(comp)}</option>`
+                ).join('');
+
+                const hasNote = rec.note && rec.note.trim().length > 0;
+
+                return `
+                <tr class="block lg:table-row p-4 lg:p-0 hover:bg-slate-50/80 transition">
+                    <!-- 1. 날짜 -->
+                    <td class="block lg:table-cell py-1.5 lg:py-3 px-0 lg:px-3 align-top">
+                        <span class="block lg:hidden text-xs font-semibold text-slate-500 mb-1">날짜</span>
+                        <input type="date" value="${escapeHtml(rec.date)}"
+                            onchange="updateRecordField('${rec.id}', 'date', this.value)"
+                            class="w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </td>
+
+                    <!-- 2. 운수사명 (드롭다운) -->
+                    <td class="block lg:table-cell py-1.5 lg:py-3 px-0 lg:px-3 align-top">
+                        <span class="block lg:hidden text-xs font-semibold text-slate-500 mb-1">운수사명</span>
+                        <select onchange="updateRecordField('${rec.id}', 'company', this.value)"
+                            class="w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-sm font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            ${companyOptions}
+                        </select>
+                    </td>
+
+                    <!-- 3. 차번 -->
+                    <td class="block lg:table-cell py-1.5 lg:py-3 px-0 lg:px-3 align-top">
+                        <span class="block lg:hidden text-xs font-semibold text-slate-500 mb-1">차번</span>
+                        <input type="text" value="${escapeHtml(rec.busNumber)}" placeholder="예: 1234"
+                            oninput="updateRecordField('${rec.id}', 'busNumber', this.value)"
+                            class="w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </td>
+
+                    <!-- 4. 기사명 -->
+                    <td class="block lg:table-cell py-1.5 lg:py-3 px-0 lg:px-3 align-top">
+                        <span class="block lg:hidden text-xs font-semibold text-slate-500 mb-1">기사명</span>
+                        <input type="text" value="${escapeHtml(rec.driver)}" placeholder="기사 성함"
+                            oninput="updateRecordField('${rec.id}', 'driver', this.value)"
+                            class="w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </td>
+
+                    <!-- 5. 평점 -->
+                    <td class="block lg:table-cell py-1.5 lg:py-3 px-0 lg:px-3 align-top">
+                        <span class="block lg:hidden text-xs font-semibold text-slate-500 mb-1">평점 (낮을수록 우수)</span>
+                        <input type="number" step="0.1" min="0" max="10" value="${escapeHtml(rec.rating)}" placeholder="1.0"
+                            oninput="updateRecordField('${rec.id}', 'rating', this.value)"
+                            class="w-full rounded-xl border border-slate-200 bg-white px-2.5 py-2 text-sm font-semibold text-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </td>
+
+                    <!-- 6. 비고 (작성하기 팝업 버튼 + 전체 내용 줄바꿈 표시) -->
+                    <td class="block lg:table-cell py-1.5 lg:py-3 px-0 lg:px-3 align-top">
+                        <span class="block lg:hidden text-xs font-semibold text-slate-500 mb-1">비고</span>
+                        <div class="flex flex-col gap-1.5 items-start">
+                            <button type="button" onclick="openNoteModal('${rec.id}')"
+                                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border transition ${hasNote ? 'bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-100' : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'}">
+                                <i data-lucide="pen-square" class="w-3.5 h-3.5 shrink-0"></i>
+                                <span>${hasNote ? '수정하기' : '작성하기'}</span>
+                            </button>
+                            ${hasNote ? `<p class="text-xs text-slate-600 bg-slate-50 border border-slate-100 rounded-lg px-2.5 py-1.5 w-full whitespace-pre-wrap break-words leading-relaxed">${escapeHtml(rec.note)}</p>` : ''}
+                        </div>
+                    </td>
+
+                    <!-- 7. 삭제 버튼 -->
+                    <td class="block lg:table-cell pt-2 lg:py-3 px-0 lg:px-3 align-top lg:text-center">
+                        <button type="button" onclick="requestDeleteRow('${rec.id}')" title="행 삭제"
+                            class="w-full lg:w-auto inline-flex items-center justify-center gap-1 px-3 py-2 lg:p-2 text-xs font-medium text-rose-600 bg-rose-50/70 lg:bg-transparent hover:bg-rose-100 rounded-xl transition">
+                            <i data-lucide="trash-2" class="w-4 h-4 shrink-0"></i>
+                            <span class="lg:hidden">기록 삭제</span>
+                        </button>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+
+            if (window.lucide) {
+                lucide.createIcons();
+            }
+        }
+
+        // ==========================================
+        // 3. 비고 팝업 모달 제어
+        // ==========================================
+        function openNoteModal(id) {
+            const rec = records.find(r => r.id === id);
+            if (!rec) return;
+
+            activeNoteRecordId = id;
+            const infoEl = document.getElementById('noteModalInfo');
+            const textareaEl = document.getElementById('noteTextarea');
+
+            const busInfo = rec.busNumber ? ` · 차번 ${rec.busNumber}` : '';
+            const driverInfo = rec.driver ? ` · ${rec.driver} 기사님` : '';
+            infoEl.textContent = `${rec.date || '날짜 미지정'} | ${rec.company}${busInfo}${driverInfo}`;
+            textareaEl.value = rec.note || '';
+
+            const modal = document.getElementById('noteModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            setTimeout(() => textareaEl.focus(), 50);
+        }
+
+        function closeNoteModal() {
+            activeNoteRecordId = null;
+            const modal = document.getElementById('noteModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function saveNoteModal() {
+            if (!activeNoteRecordId) return;
+            const textareaEl = document.getElementById('noteTextarea');
+            const idx = records.findIndex(r => r.id === activeNoteRecordId);
+            if (idx !== -1) {
+                records[idx].note = textareaEl.value;
+                renderTable();
+                persistData(true);
+                showToast("비고사항이 저장되었습니다.", "success");
+            }
+            closeNoteModal();
+        }
+
+        // ==========================================
+        // 4. 실시간 통계 집계 및 렌더링
+        // ==========================================
+        function updateAnalytics() {
+            renderCompanyRatingRank();
+            renderCompanyRideCount();
+            renderDriverRideCount();
+        }
+
+        // 4-1. 운수사별 평균 평점 순위 (낮을수록 고순위)
+        function renderCompanyRatingRank() {
+            const container = document.getElementById('companyRatingRankList');
+            const stats = COMPANIES.map(comp => {
+                const validRatings = records
+                    .filter(r => r.company === comp && r.rating !== "" && !isNaN(parseFloat(r.rating)))
+                    .map(r => parseFloat(r.rating));
+
+                const count = validRatings.length;
+                const avg = count > 0 ? (validRatings.reduce((a, b) => a + b, 0) / count) : null;
+                return { company: comp, avg, count };
+            });
+
+            // 평점이 있는 운수사는 오름차순(낮을수록 1위), 기록이 없는 운수사는 하단 배치
+            stats.sort((a, b) => {
+                if (a.avg === null && b.avg === null) return 0;
+                if (a.avg === null) return 1;
+                if (b.avg === null) return -1;
+                return a.avg - b.avg;
+            });
+
+            let currentRank = 1;
+            container.innerHTML = stats.map((item, idx) => {
+                const hasData = item.avg !== null;
+                const rankLabel = hasData ? `${currentRank++}위` : '-';
+                const badgeStyle = !hasData
+                    ? 'bg-slate-100 text-slate-400'
+                    : idx === 0
+                        ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                        : idx === 1
+                            ? 'bg-slate-200 text-slate-700'
+                            : idx === 2
+                                ? 'bg-orange-100 text-orange-800'
+                                : 'bg-slate-100 text-slate-600';
+
+                return `
+                <div class="flex items-center justify-between gap-2 p-3 rounded-xl bg-slate-50/80 border border-slate-100">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <span class="px-2 py-0.5 text-xs font-bold rounded-lg shrink-0 ${badgeStyle}">${rankLabel}</span>
+                        <span class="font-semibold text-slate-800 text-sm no-clip-text">${escapeHtml(item.company)}</span>
+                    </div>
+                    <div class="text-right shrink-0">
+                        <span class="text-sm font-bold ${hasData ? 'text-indigo-600' : 'text-slate-400'}">
+                            ${hasData ? item.avg.toFixed(2) + '점' : '기록 없음'}
+                        </span>
+                        <span class="block text-[11px] text-slate-400">${item.count}건 평가</span>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        // 4-2. 운수사별 탑승 횟수
+        function renderCompanyRideCount() {
+            const container = document.getElementById('companyRideCountList');
+            const totalRides = records.length;
+
+            const stats = COMPANIES.map(comp => {
+                const count = records.filter(r => r.company === comp).length;
+                const pct = totalRides > 0 ? Math.round((count / totalRides) * 100) : 0;
+                return { company: comp, count, pct };
+            }).sort((a, b) => b.count - a.count);
+
+            container.innerHTML = stats.map(item => `
+                <div class="space-y-1.5">
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="font-semibold text-slate-700 no-clip-text">${escapeHtml(item.company)}</span>
+                        <span class="font-bold text-slate-800 shrink-0">${item.count}회 <span class="text-xs font-normal text-slate-400">(${item.pct}%)</span></span>
+                    </div>
+                    <div class="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                        <div class="h-full bg-indigo-500 rounded-full transition-all duration-300" style="width: ${item.pct}%"></div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // 4-3. 기사별 탑승 횟수
+        function renderDriverRideCount() {
+            const container = document.getElementById('driverRideCountList');
+            const driverMap = new Map();
+
+            records.forEach(r => {
+                const name = (r.driver || '').trim();
+                if (!name) return;
+                if (!driverMap.has(name)) {
+                    driverMap.set(name, { name, count: 0, companies: new Set() });
+                }
+                const entry = driverMap.get(name);
+                entry.count += 1;
+                if (r.company) entry.companies.add(r.company);
+            });
+
+            const sortedDrivers = Array.from(driverMap.values()).sort((a, b) => b.count - a.count);
+
+            if (sortedDrivers.length === 0) {
+                container.innerHTML = `
+                    <div class="py-8 text-center text-xs text-slate-400">
+                        기사명을 입력하면 기사별 탑승 횟수 순위가 자동으로 표시됩니다.
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = sortedDrivers.map((d, idx) => {
+                const compBadges = Array.from(d.companies).join(', ');
+                return `
+                <div class="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-slate-50/80 border border-slate-100">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <span class="w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold flex items-center justify-center shrink-0">${idx + 1}</span>
+                        <div class="min-w-0 no-clip-text">
+                            <p class="text-sm font-semibold text-slate-800">${escapeHtml(d.name)} 기사님</p>
+                            <p class="text-[11px] text-slate-500">${escapeHtml(compBadges)}</p>
+                        </div>
+                    </div>
+                    <span class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-xs font-bold text-emerald-700 shrink-0">
+                        ${d.count}회 탑승
+                    </span>
+                </div>
+                `;
+            }).join('');
+        }
+
+        // ==========================================
+        // 5. Google 스프레드시트 연동 & CSV 저장
+        // ==========================================
+        function openSheetModal() {
+            document.getElementById('appsScriptUrlInput').value = sheetWebAppUrl || '';
+            const modal = document.getElementById('sheetModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeSheetModal() {
+            const modal = document.getElementById('sheetModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function saveSheetUrl() {
+            const inputUrl = document.getElementById('appsScriptUrlInput').value.trim();
+            sheetWebAppUrl = inputUrl;
+            localStorage.setItem(SHEET_URL_KEY, sheetWebAppUrl);
+            updateSheetStatusUI();
+            closeSheetModal();
+
+            if (sheetWebAppUrl) {
+                showToast("스프레드시트 URL이 등록되었습니다. 데이터를 동기화합니다.", "success");
+                syncAllToSheet(true);
+            } else {
+                showToast("시트 연동 URL이 해제되어 로컬 저장 모드로 전환되었습니다.", "info");
+            }
+        }
+
+        function updateSheetStatusUI() {
+            const dot = document.getElementById('sheetStatusDot');
+            const text = document.getElementById('sheetStatusText');
+            const syncBtn = document.getElementById('manualSyncBtn');
+
+            if (sheetWebAppUrl) {
+                dot.className = "w-2 h-2 rounded-full bg-emerald-500 shrink-0";
+                text.textContent = "시트 자동저장 ON";
+                syncBtn.classList.remove('hidden');
+                syncBtn.classList.add('flex');
+            } else {
+                dot.className = "w-2 h-2 rounded-full bg-amber-400 shrink-0";
+                text.textContent = "시트 연동 설정";
+                syncBtn.classList.add('hidden');
+                syncBtn.classList.remove('flex');
+            }
+        }
+
+        // Google Apps Script로 데이터 전송
+        async function syncAllToSheet(showFeedback = false) {
+            if (!sheetWebAppUrl) {
+                if (showFeedback) openSheetModal();
+                return;
+            }
+
+            try {
+                await fetch(sheetWebAppUrl, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: {
+                        'Content-Type': 'text/plain;charset=utf-8'
+                    },
+                    body: JSON.stringify({
+                        spreadsheetId: "1d6E2c-KOIHBzUpLjvUxmSaafp11LfB2kK797lyHUwas",
+                        records: records
+                    })
+                });
+                if (showFeedback) {
+                    showToast("지정된 Google 스프레드시트로 데이터를 전송했습니다.", "success");
+                }
+            } catch (error) {
+                console.error("스프레드시트 전송 오류:", error);
+                if (showFeedback) {
+                    showToast("스프레드시트 전송 중 오류가 발생했습니다. URL을 확인해주세요.", "error");
+                }
+            }
+        }
+
+        // Apps Script 코드 클립보드 복사 (execCommand 사용)
+        function copyAppsScriptCode() {
+            const codeText = document.getElementById('appsScriptSnippet').innerText;
+            const tempTextarea = document.createElement('textarea');
+            tempTextarea.value = codeText;
+            tempTextarea.style.position = 'fixed';
+            tempTextarea.style.opacity = '0';
+            document.body.appendChild(tempTextarea);
+            tempTextarea.select();
+            try {
+                document.execCommand('copy');
+                showToast("Apps Script 코드가 클립보드에 복사되었습니다.", "success");
+            } catch (err) {
+                showToast("복사에 실패했습니다. 직접 드래그하여 복사해주세요.", "error");
+            }
+            document.body.removeChild(tempTextarea);
+        }
+
+        // CSV 엑셀 파일 다운로드
+        function exportToCSV() {
+            if (records.length === 0) {
+                showToast("저장할 데이터가 없습니다.", "info");
+                return;
+            }
+
+            const headers = ["날짜", "운수사명", "차번", "기사명", "평점", "비고"];
+            const csvRows = [headers.join(",")];
+
+            records.forEach(r => {
+                const row = [
+                    r.date,
+                    r.company,
+                    r.busNumber,
+                    r.driver,
+                    r.rating,
+                    r.note
+                ].map(val => `"${String(val || '').replace(/"/g, '""')}"`);
+                csvRows.push(row.join(","));
+            });
+
+            const bom = "\uFEFF";
+            const blob = new Blob([bom + csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `진주시_버스탑승평가_${getTodayString()}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            showToast("CSV 파일이 다운로드되었습니다.", "success");
+        }
+
+        // ==========================================
+        // 6. 토스트 알림 메시지
+        // ==========================================
+        function showToast(message, type = "info") {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+
+            const colors = {
+                success: "bg-slate-900 text-white border-emerald-500",
+                error: "bg-rose-600 text-white border-rose-400",
+                info: "bg-slate-800 text-white border-indigo-400"
+            };
+
+            toast.className = `pointer-events-auto px-4 py-3 rounded-xl shadow-lg border-l-4 text-xs sm:text-sm font-medium transition-all duration-300 transform translate-y-2 opacity-0 ${colors[type] || colors.info}`;
+            toast.textContent = message;
+
+            container.appendChild(toast);
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 2600);
+        }
+    </script>
+</body>
+</html>
